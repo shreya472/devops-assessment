@@ -1,0 +1,8 @@
+version: "3"
+services:
+  go-app:
+  image: <repository-link>/go-app:1.0 # go-app is the name of the image
+  ports:
+  environment:
+    - DEMO_APP_ADDR:8080
+    - DEMO_REDIS_ADDR:6379
