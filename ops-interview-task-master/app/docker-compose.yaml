@@ -1,8 +1,29 @@
 version: "3"
 services:
   go-app:
-  image: <repository-link>/go-app:1.0 # go-app is the name of the image
-  ports:
-  environment:
-    - DEMO_APP_ADDR:8080
-    - DEMO_REDIS_ADDR:6379
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+  redis:
+    image: redis
+    ports:
+      - "8000:6379"
+    volumes:
+      - redis-vol:/data
+  nginx:
+    image: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./key.pem:/root/ssl/key.pem
+      - ./cert.pem:/root/ssl/cert.pem
+    depends_on:
+      - go-app
+
+volumes:
+  redis-vol:
