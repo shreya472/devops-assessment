@@ -1,0 +1,123 @@
+---
+- name: Tasks on VM
+  hosts: <IP address of the VM>
+  become: yes
+  become_user: root
+
+  tasks:
+  - name: set hostname
+    hostname:
+      name: demo-ops
+
+  - name: create a user
+    user:
+      name: demo-ops
+      state: present
+
+  - name: harden security
+    tasks:
+    - name: disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+        backup: yes
+      notify:
+        - Restart sshd 
+
+    - name: ensuring ufw is installed
+      apt:
+        name: ufw
+        state: present
+
+    - name: allowing port 22 for ufw
+      ufw:
+        port: 22
+        rule: allow
+
+  - name: set sysctl for open files limit
+    ansible.posix.sysctl:
+      name: fs.file-max
+      value: 100000
+      state: present
+      sysctl_set: true
+      reload: true
+
+    # ansible.posix.sysctl module is used to manage the entries in /etc/sysctl.conf file
+    # the entry specified in 'name' parameter will be changed to the 'value' parameter specified
+    # 'state' is to define if the entry should be present or absent in file
+    # 'sysctl_set' is to set the value of the name; it is false by default
+    # 'reload' performs a refresh
+
+  - name: set timezone
+    timezone:
+      name: Asia/Kolkata
+
+  - name: install docker
+    tasks:
+    - name: update apt-get
+      apt:
+        update_cache: yes
+
+    - name: install prerequisite packages for docker
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - software-properties-common
+        state: present
+        update_cache: true
+      
+    - name: add docker gpg apt key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: add docker repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+    
+    - name: update apt-get
+      apt:
+        update_cache: yes
+
+    - name: install docker-ce
+      apt:
+        name: docker-ce
+        state: present
+      
+    - name: run docker service
+      service:
+        name: docker
+        state: true
+
+    # not adding root user to docker group since it is tken care by default when installation is done as root user
+
+    - name: install docker-compose
+      get_url: 
+        url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-Linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: 'a+x'
+
+    - name: deploy docker-compose YAML file in /etc/demo-ops
+      tasks:  
+      - name: copy docker compose file to /etc/demo-ops
+        copy:
+          src: /app/docker-compose.yml
+          dest: /etc/demo-ops/
+
+      - name: deploy docker compose files
+        community.docker.docker_compose:
+          project_src: /etc/demo-ops/docker-compose.yml
+          state: present
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+
+  
